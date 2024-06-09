@@ -1,0 +1,15 @@
+{
+  "name": "html-bindgen",
+  "type": "module",
+  "version": "0.1.0",
+  "description": "generate TypeScript bindings from HTML",
+  "main": "src/index.js",
+  "license": "(MIT OR Apache-2.0)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jsscheller/html-bindgen.git"
+  },
+  "dependencies": {
+    "node-html-parser": "^6.1.12"
+  }
+}
