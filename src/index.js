@@ -4,12 +4,14 @@ import * as os from "os";
 import { parse } from "node-html-parser";
 
 export async function bindgen(config) {
+  await fs.mkdir(config.outputDir, { recursive: true });
+
   const inputDir = path.resolve(config.inputDir);
   const inputFilePaths = await fs
     .readdir(config.inputDir, { recursive: true })
     .then((x) => x.map((y) => path.parse(path.join(inputDir, y))));
   const inputHtmlPaths = inputFilePaths.filter((x) => x.ext === ".html");
-  const inputCssPaths = inputFilePaths.filter((x) => x.ext !== ".html");
+  const inputCssPaths = inputFilePaths.filter((x) => x.ext === ".css");
 
   const ensured = new Set();
   const keep = [];
@@ -210,9 +212,9 @@ function parseTemplate(node) {
 }
 
 function parseRefs(node, path = [], acc = []) {
-  const ref = node.getAttribute("ref");
+  const ref = node.getAttribute("id");
   if (ref) {
-    node.removeAttribute("ref");
+    node.removeAttribute("id");
     acc.push({
       name: ref,
       type: parseHTMLType(node.tagName),
