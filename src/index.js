@@ -70,10 +70,13 @@ export async function bindgen(config) {
             css = await fs
               .readFile(path.format(cssPath))
               .then((x) => x.toString());
-            await fs.writeFile(cssTsOutputFilePath, parseCSS(css));
-            ts =
-              `export * as css from "./${path.basename(cssTsOutputFilePath)}";\n` +
-              ts;
+            const cssTs = parseCSS(css);
+            if (cssTs) {
+              await fs.writeFile(cssTsOutputFilePath, cssTs);
+              ts =
+                `export * as css from "./${path.basename(cssTsOutputFilePath)}";\n` +
+                ts;
+            }
           }
         } else {
           const parsed = parseHTML(htmlBuf, mtime);
@@ -108,20 +111,9 @@ function parseIds(s) {
     const end = s.indexOf('"', start + needle.length);
     const name = s.slice(start + needle.length, end);
     const tagStart = s.slice(0, end).lastIndexOf("<");
-    const tagEnd = s.indexOf(" ", tagStart);
+    const tagEnd = s.slice(tagStart).search(/\s/) + tagStart;
     const tag = s.slice(tagStart + 1, tagEnd);
-    let as = "HTMLElement";
-    switch (tag) {
-      case "input":
-        as = "HTMLInputElement";
-        break;
-      case "select":
-        as = "HTMLSelectElement";
-        break;
-      case "form":
-        as = "HTMLFormElement";
-        break;
-    }
+    const as = parseHTMLType(tag.toUpperCase());
     lines.push(
       `export const ${name} = document.getElementById("${name}") as ${as};`,
     );
@@ -135,8 +127,7 @@ function parseCSS(s) {
   let offset = s.length;
   while (true) {
     const openBraketPos = s.slice(0, offset).lastIndexOf("{");
-    if (openBraketPos === -1) break;
-    // 0 means we are at the first rule.
+    if (openBraketPos === -1) break; // 0 means we are at the first rule.
     let selStartPos = s.slice(0, openBraketPos).lastIndexOf("}");
     if (selStartPos === -1) {
       selStartPos = 0;
@@ -158,9 +149,8 @@ function parseCSS(s) {
       let classEndPos = classStartPos + selLen;
       let classIdent = s.slice(classStartPos, classEndPos);
 
-      selOffset = selStartPos + dotPos;
+      selOffset = selStartPos + dotPos; // Skip media queries with a decimal.
 
-      // Skip media queries with a decimal.
       if (classIdent.endsWith("px") && !isNaN(parseInt(classIdent))) {
         continue;
       }
@@ -199,7 +189,13 @@ function parseHTML(html, mtime) {
 
 function parseTemplate(node) {
   const name = node.getAttribute("id");
-  node.removeAttribute("id");
+  const idAttr = node.getAttribute("id_");
+  if (idAttr) {
+    node.removeAttribute("id_");
+    node.setAttribute("id", idAttr);
+  } else {
+    node.removeAttribute("id");
+  }
   const type = parseHTMLType(node.tagName);
   const refs = parseRefs(node);
   node.removeWhitespace();
@@ -220,6 +216,11 @@ function parseRefs(node, path = [], acc = []) {
       type: parseHTMLType(node.tagName),
       path: "this.base" + path.map((x) => `.children[${x}]!`).join(""),
     });
+  }
+  const idAttr = node.getAttribute("id_");
+  if (idAttr) {
+    node.removeAttribute("id_");
+    node.setAttribute("id", idAttr);
   }
   let index = 0;
   for (const child of node.childNodes) {
@@ -244,6 +245,14 @@ function parseHTMLType(tagName) {
       return "HTMLTextAreaElement";
     case "CANVAS":
       return "HTMLCanvasElement";
+    case "AUDIO":
+      return "HTMLAudioElement";
+    case "BUTTON":
+      return "HTMLButtonElement";
+    case "A":
+      return "HTMLAnchorElement";
+    case "DIALOG":
+      return "HTMLDialogElement";
     default:
       return "HTMLElement";
   }
@@ -260,20 +269,20 @@ function writeTemplate({ name, type, refs, html }) {
   return `
 let _${name}: HTMLElement | undefined;
 export class ${name} {
-  base: ${type};
-  ${fieldTypes.join("\n  ")}
+  base: ${type};
+  ${fieldTypes.join("\n  ")}
 
-  constructor() {
-    if (!_${name}) {
-      const tmp = document.createElement("div");
-      tmp.innerHTML = \`${html}\`;
-      _${name} = tmp.children[0]! as HTMLElement;
-    }
-    this.base = _${name}!.cloneNode(true) as ${type};
-    ${fieldInits.join("\n    ")}
-  }
+  constructor() {
+    if (!_${name}) {
+      const tmp = document.createElement("div");
+      tmp.innerHTML = \`${html}\`;
+      _${name} = tmp.children[0]! as HTMLElement;
+    }
+    this.base = _${name}!.cloneNode(true) as ${type};
+    ${fieldInits.join("\n    ")}
+  }
 }
-  `.trim();
+  `.trim();
 }
 
 function writeCSS(s) {
@@ -281,8 +290,7 @@ function writeCSS(s) {
   let offset = s.length;
   while (true) {
     const openBraketPos = s.slice(0, offset).lastIndexOf("{");
-    if (openBraketPos === -1) break;
-    // 0 means we are at the first rule.
+    if (openBraketPos === -1) break; // 0 means we are at the first rule.
     let selStartPos = s.slice(0, openBraketPos).lastIndexOf("}");
     if (selStartPos === -1) {
       selStartPos = 0;
@@ -304,9 +312,8 @@ function writeCSS(s) {
       let classEndPos = classStartPos + selLen;
       let classIdent = s.slice(classStartPos, classEndPos);
 
-      selOffset = selStartPos + dotPos;
+      selOffset = selStartPos + dotPos; // Skip media queries with a decimal.
 
-      // Skip media queries with a decimal.
       if (classIdent.endsWith("px") && !isNaN(parseInt(classIdent))) {
         continue;
       }
