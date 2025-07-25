@@ -1,7 +1,7 @@
 {
   "name": "html-bindgen",
   "type": "module",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "generate TypeScript bindings from HTML",
   "main": "index.js",
   "license": "(MIT OR Apache-2.0)",
